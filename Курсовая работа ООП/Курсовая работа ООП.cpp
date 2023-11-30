@@ -19,12 +19,15 @@ struct list {
 	struct energyReport inf;
 	struct list* next, * previous;
 };
-
-float deviationSize;				//размер отклонения факта от плана(со знаком)
-float totalValuesPerPosition;		//суммарные значения по каждой позиции (для отрасли в целом)
-
+/*------------------------------Работа со стрелками------------------------------*/
+enum {
+	UP = 72,
+	DOWN = 80,
+	ESC = 27,
+	ENTER = 13
+};
 /*------------------------------Шаблоны для меню------------------------------*/
-const string menuOptions1[] = {
+const string menuOptions1[] = {			//Главный экран
 		"Создать список",
 		"Вывести на экран",
 		"Добавить новый элемент",
@@ -38,13 +41,39 @@ const string menuOptions1[] = {
 
 		"Завершить работу"
 };
-const int N1 = 11; //количество элементов первого варианта меню
-//const string menuOptions2[] = { "Вариант 1", "Вариант 2", "Вариант 3", "Выход из программы" };
-//const int N2 = ; //количество элементов второго варианта меню
-//const string menuOptions3[] = { "Вариант 1", "Вариант 2", "Вариант 3", "Выход из программы" };
-//const int N3 = ; //количество элементов третьего варианта меню
+const int N1 = 11; //количество элементов menuOptions1
 
+const string menuOptions2[] = {			//Корректировка
+		"Номер завода",
+		"ФИО директора",
+		"ФИО главного энергетика",
+		"Расход энергии по плану (в тыс. КВт∙ч)",
+		"Израсходовано фактически (в тыс. КВт∙ч)",
+		"Завершить редактирование"
+};
+const int N2 = 6; //количество элементов menuOptions2
 
+const string menuOptions3[] = {			//Поиск по полям
+	"ФИО директора",
+	"ФИО главного инженера",
+	"Номер завода"
+};
+const int N3 = 3; //количество элементов menuOptions3
+
+const string menuOptions4[] = {			//Выбор формата файла
+	"Бинарный файл",
+	"Текстовый файл"
+};
+const int N4 = 2; //количество элементов menuOptions4
+
+const string menuOptions5[] = {			//Создание списка
+	"Продолжить заполнение",
+	"Завершить заполнение"
+};
+const int N5 = 2; //количество элементов menuOptions5
+
+//Изъятие дескриптора потока вывода
+HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
 /*------------------------------Определение функций------------------------------*/
 energyReport InputEnergyReport(int& index);
 list* AddFirstField(list* begin, list* _temp);
@@ -52,13 +81,20 @@ list* AddLastField(list* begin, list* _temp);
 list* AddField(list* begin, int& index);
 list* DeleteField(list* begin);
 list* CreateList(list* begin, int& index);
-void PrintList(list* begin, int _search);
-void SaveListToFile(list* begin);
-list* DownloadListFromFile(list* begin, int& index);
-void DeleteList(list*& begin);
+void PrintList(list* begin);
+void SaveListToFileTxt(list* begin, string _fileName);
+void SaveListToFileBin(list* begin, string _fileName);
+list* DownloadListFromFileTxt(list* begin, string _fileName, int& index);
+list* DownloadListFromFileBin(list* begin, string _fileName, int& index);
+void DeleteList(list*& begin, int& index);
 list* CorrectField(list* begin, int modifiedElementIndex);
 list* SortingList(list* begin);
 void SearchInList(list* begin);
+void SaveProcessing(float _planned, float _actual);
+//void goToXY(short _x, short _y);
+void cls();
+void cursorVisible(bool _show, int _size);
+int menu(const string* _menu, int _size, int& _selectedOption);
 
 int main() {
 	/*------------------------------Настройка окна------------------------------*/
@@ -66,75 +102,101 @@ int main() {
 	SetConsoleOutputCP(1251);
 	SetConsoleTitle(L"Курсовой проект");
 	ShowWindow(GetConsoleWindow(), SW_MAXIMIZE);
-	system("CLS");
+	system("cls");
 	system("color E0");
 	/*------------------------------Настройка размера шрифта------------------------------*/
 	CONSOLE_FONT_INFOEX cfi;
 	cfi.cbSize = sizeof(cfi);
 	cfi.dwFontSize.X = 0;
 	cfi.dwFontSize.Y = 24;
-	SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &cfi);
-	//Изъятие дескриптора потока вывода
-	HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetCurrentConsoleFontEx(hStdOut, FALSE, &cfi);
 
 	int index = 1;					//Нумерация записей
-	int choiceOperation;			//Выбор пользователем операции
+	int selectedOption = 0;			//Выбор пользователем операции
+	string fileName;				//Название файла
+	int fileExtension = 0;			//Выбор расширения файла
 	bool programIsOpen = true;		//Условие работы программы
-	struct energyReport X;
-	struct list* begin;
-	begin = NULL;
-	//begin->previous = NULL;
+	list* begin = NULL;
 
 	while (programIsOpen) {
-		cout << "==============================" << endl;
-		cout << "1 - Создать список;" << endl;
-		cout << "2 - Вывести на экран;" << endl;
-		cout << "3 - Добавить новый элемент;" << endl;
-		cout << "4 - Удалить элемент;" << endl;
-		cout << "5 - Сохранить список в файл;" << endl;
-		cout << "6 - Загрузить список из файла;" << endl;
-		cout << "7 - Очистить память;" << endl;
-		cout << "8 - Корректировка записи;" << endl;
-		cout << "9 - Сортировка списка;" << endl;
-		cout << "10 - Поиск в списке;" << endl;
-
-		cout << "0 - Завершить работу." << endl;
-		cout << "==============================" << endl;
-		cout << "Выберите операцию: ";
-		cin >> choiceOperation;
-		switch (choiceOperation) {
+		switch (menu(menuOptions1, N1, selectedOption)) {
+		case -1:
+			return 0;
 		case 0:
-			programIsOpen = false;
+			begin = CreateList(begin, index);
+			cls();
 			break;
-		case 1: begin = CreateList(begin, index); break;
-		case 2: PrintList(begin, 0); break;
-		case 3: begin = AddField(begin, index); break;
-		case 4: begin = DeleteField(begin); break;
-		case 5: SaveListToFile(begin); break;
-		case 6: begin = DownloadListFromFile(begin, index); break;
-		case 7:
-			DeleteList(begin);
+		case 1:
+			PrintList(begin);
+			system("cls");
+			break;
+		case 2:
+			begin = AddField(begin, index);
+			cls();
+			break;
+		case 3:
+			begin = DeleteField(begin);
+			cls();
+			break;
+		case 4:
+			cout << "Введите название файла для сохранения: ";
+			cin >> fileName;
+			cout << "Выберите расширение, в котором хотите сохранить:" << endl;
+			if (menu(menuOptions4, N4, fileExtension)) {
+				SaveListToFileTxt(begin, fileName);
+			}
+			else {
+				SaveListToFileBin(begin, fileName);
+			}
+			cls();
+			break;
+		case 5:
+			cout << "Введите название файла для загрузки: ";
+			cin >> fileName;
+			cout << "Выберите расширение, из которого хотите открыть:" << endl;
+			if (menu(menuOptions4, N4, fileExtension)) {
+				begin = DownloadListFromFileTxt(begin, fileName, index);
+			}
+			else {
+				begin = DownloadListFromFileBin(begin, fileName, index);
+			}
+			cls();
+			break;
+		case 6:
+			DeleteList(begin, index);
 			cout << "Память очищена" << endl;
-			//cout << "==============================" << endl;
+			cout << "==============================" << endl;
+			cls();
 			break;
-		case 8:
+		case 7:
 			int modifiedElementIndex;
 			cout << "Введите номер записи, которую необходимо отредактировать: ";
 			cin >> modifiedElementIndex;
 			begin = CorrectField(begin, modifiedElementIndex);
+			cls();
 			break;
-		case 9: begin = SortingList(begin); break;
-		case 10: SearchInList(begin); break;
-
+		case 8:
+			begin = SortingList(begin);
+			cls();
+			break;
+		case 9:
+			SearchInList(begin);
+			cls();
+			break;
+		case 10:
+			programIsOpen = false;
+			break;
 		default:
 			cout << "Выбрана несуществующая операция" << endl;
 			cout << "Выберите заново нужное действие" << endl;
 			cout << "==============================" << endl;
+			cls();
 			break;
 		}
 	}
 
-	DeleteList(begin);
+	DeleteList(begin, index);
+	SetConsoleTextAttribute(hStdOut, BACKGROUND_GREEN | BACKGROUND_RED | BACKGROUND_INTENSITY);
 	cout << "Нажмите любую кнопку для выхода из программы" << endl;
 	system("pause");
 	return 0;
@@ -157,7 +219,7 @@ energyReport InputEnergyReport(int& index) {
 }
 
 list* AddFirstField(list* begin, list* _temp) {
-	_temp->next = begin;						//связали с бывшей первой и вернули указатель на новое
+	_temp->next = begin;
 	_temp->previous = NULL;
 	return _temp;
 }
@@ -179,7 +241,7 @@ list* AddField(list* begin, int& index) {
 	list* temp = new list;
 	list* end = begin;
 	temp->inf = InputEnergyReport(index);
-	cout << "Введите номер, на который вы хотите добавить элемент в список" << endl;
+	cout << "Введите номер, на который вы хотите добавить элемент в список: ";
 	cin >> numberInList;
 
 	if (numberInList == 1) {
@@ -216,7 +278,7 @@ list* DeleteField(list* begin) {
 	int numberInList;
 	list* temp = new list;
 	list* end = begin;
-	cout << "Введите номер объекта, который вы хотите удалить из списка" << endl;
+	cout << "Введите номер объекта, который вы хотите удалить из списка: ";
 	cin >> numberInList;
 
 	for (int i = 1; i < numberInList; i++) {
@@ -246,7 +308,7 @@ list* DeleteField(list* begin) {
 }
 
 list* CreateList(list* begin, int& index) {
-	bool isCreate = false;
+	int isCreate = 0;
 	do {
 		list* temp = new list;
 		temp->inf = InputEnergyReport(index);
@@ -256,56 +318,87 @@ list* CreateList(list* begin, int& index) {
 		else {
 			begin = AddLastField(begin, temp);
 		}
-		cout << "Если хотите продолжить заполнение, введите 1" << endl;
-		cout << "Для завершения заполнения введите 0" << endl;
-		cin >> isCreate;
-	} while (isCreate);
+	} while (!menu(menuOptions5, N5, isCreate));
 	cout << "Список создан" << endl;
 	cout << "==============================" << endl;
 	return begin;
 }
 
-void PrintList(list* begin, int _search) {
-	if (begin == NULL) {
+void PrintList(list* begin) {
+	const int maxCount = 10;				//Максимум записей на 1 странице
+	int currentCount;						//Текущее количество записей
+	list* temp = begin;
+	list* tempBeg = begin;
+
+	float deviationSize;					//размер отклонения факта от плана
+	float totalValuesPlanned = 0;			//суммарные значения по плану 
+	float totalValuesActual = 0;			//суммарные значения по факту
+	
+	if (begin == NULL) {					
 		cout << "Список пустой" << endl;
+		_getch();
 		return;
 	}
-	list* temp = new list;
-	cout << "_______________________________________________________________________________________________________________________" << endl;
-	cout << "| Порядковый номер | Номер завода | ФИО директора | ФИО главного | Расход энергии по плану | Израсходовано фактически |" << endl;
-	cout << "|                  |              |               |   инженера   |      (в тыс. КВт∙ч)     |      (в тыс. КВт∙ч)      |" << endl;
-	for (temp = begin; temp != NULL; temp = temp->next) {
-		cout << "|" << setw(18) << temp->inf.orderNumber;
-		cout << "|" << setw(14) << temp->inf.factoryNumber;
-		cout << "|" << setw(15) << temp->inf.directorFullName;
-		cout << "|" << setw(14) << temp->inf.chiefEngineerFullName;
-		cout << "|" << setw(25) << temp->inf.plannedEnergyConsumption;
-		cout << "|" << setw(26) << temp->inf.actualEnergyConsumption << "|" << endl;
-		if (_search) {
-			cout << "_______________________________________________________________________________________________________________________" << endl;
+	/*Подсчет сумарных показателей*/
+	for (; temp != NULL; temp = temp->next) {
+		totalValuesPlanned += temp->inf.plannedEnergyConsumption;
+		totalValuesActual += temp->inf.actualEnergyConsumption;
+	}
+
+	while (true) {
+		/*Вывод таблицы по maxCount элементов*/
+		cout << "_____________________________________________________________________________________________________________________________________________" << endl;
+		cout << "| Порядковый номер | Номер завода | ФИО директора | ФИО главного | Расход энергии по плану | Израсходовано фактически | Отклонение от плана |" << endl;
+		cout << "|                  |              |               |   инженера   |      (в тыс. КВт∙ч)     |      (в тыс. КВт∙ч)      |    (в тыс. КВт∙ч)   |" << endl;
+		cout << "---------------------------------------------------------------------------------------------------------------------------------------------" << endl;
+		for (currentCount = 0, temp = tempBeg; temp != NULL && currentCount < maxCount; temp = temp->next, currentCount++) {
+			deviationSize = temp->inf.plannedEnergyConsumption - temp->inf.actualEnergyConsumption;
+			cout << "|" << setw(18) << temp->inf.orderNumber;
+			cout << "|" << setw(14) << temp->inf.factoryNumber;
+			cout << "|" << setw(15) << temp->inf.directorFullName;
+			cout << "|" << setw(14) << temp->inf.chiefEngineerFullName;
+			cout << "|" << setw(25) << temp->inf.plannedEnergyConsumption;
+			cout << "|" << setw(26) << temp->inf.actualEnergyConsumption;
+			cout << "|" << setw(21) << deviationSize << "|" << endl;
+		}
+		cout << "_____________________________________________________________________________________________________________________________________________" << endl << endl;
+		cout << "Cуммарное значение расхода по плану: " << totalValuesPlanned << endl;
+		cout << "Cуммарное значение фактического расхода: " << totalValuesActual << endl;
+		cout << "Cуммарное значение отклонения: " << totalValuesPlanned - totalValuesActual << endl;
+		
+		/*Реализация скроллинга таблицы по 1 элементу*/
+		currentCount = 0;
+		int key = _getch();
+		if (key == 224) key = _getch();
+
+		switch (key) {
+		case UP:
+			// Кнопка "вверх"
+			system("cls");
+			if (tempBeg->previous != NULL) tempBeg = tempBeg->previous;
+			break;
+		case DOWN:
+			// Кнопка "вниз"
+			system("cls");
+			if (temp != NULL) tempBeg = tempBeg->next;
+			break;
+		case ESC:
+			//Выход назад
+			SaveProcessing(totalValuesPlanned, totalValuesActual);
 			return;
+		default:
+			cout << "Ошибка при выборе действия. Попробуйте еще раз" << endl;
+			cout << "Для продолжения нажмите любую кнопку..." << endl;
+			cls();
+			break;
 		}
 	}
-	cout << "_______________________________________________________________________________________________________________________" << endl;
-	return;
-} //TO DO скролинг
+}
 
-void SaveListToFile(list* begin) {
-	bool fileExtension;
-	string fileName;
-	cout << "Введите название файла для сохранения: ";
-	cin >> fileName;
-	cout << "Выберите расширение, в котором хотите сохранить:\n0 - bin, 1 - txt" << endl;
-	cin >> fileExtension;
+void SaveListToFileTxt(list* begin, string _fileName) {
 	ofstream fout;
-	if (fileExtension) {
-		fileName += ".txt";
-		fout.open(fileName, ios::app);
-	}
-	else {
-		fileName += ".bin";
-		fout.open(fileName, ios::binary);
-	}
+	_fileName += ".txt";
+	fout.open(_fileName, ios::app);
 	if (fout.is_open()) {
 		for (list* temp = begin; temp != NULL; temp = temp->next) {
 			fout << temp->inf.orderNumber << "	";
@@ -315,45 +408,104 @@ void SaveListToFile(list* begin) {
 			fout << temp->inf.plannedEnergyConsumption << "	";
 			fout << temp->inf.actualEnergyConsumption << endl;
 		}
-		cout << "Список сохранен в файл " << fileName << endl;
+		cout << "Список сохранен в файл " << _fileName << endl;
 		cout << "==============================" << endl;
 	}
 	else cerr << "Не удалось открыть файл для сохранения списка." << endl;
-	system("pause");
 	fout.close();
 	return;
 }
 
-list* DownloadListFromFile(list* begin, int& index) {
+void SaveListToFileBin(list* begin, string _fileName) {
+	ofstream fout;
+	_fileName += ".dat";
+	fout.open(_fileName, ios::out | ios::binary);
+	if (fout.is_open()) {
+		uint64_t strLen;
+		for (list* temp = begin; temp != NULL; temp = temp->next) {
+			fout.write((char*)&temp->inf.orderNumber, sizeof(int32_t));
+			fout.write((char*)&temp->inf.factoryNumber, sizeof(int32_t));
+
+			strLen = temp->inf.directorFullName.size();
+			fout.write((char*)&strLen, sizeof(uint64_t));
+			fout.write(&temp->inf.directorFullName[0], strLen);
+
+			strLen = temp->inf.chiefEngineerFullName.size();
+			fout.write((char*)&strLen, sizeof(uint64_t));
+			fout.write(&temp->inf.chiefEngineerFullName[0], strLen);
+
+			fout.write((char*)&temp->inf.plannedEnergyConsumption, sizeof(float));
+			fout.write((char*)&temp->inf.actualEnergyConsumption, sizeof(float));
+		}
+		cout << "Список сохранен в файл " << _fileName << endl;
+		cout << "==============================" << endl;
+	}
+	else cerr << "Не удалось открыть файл для сохранения списка." << endl;
+	fout.close();
+	return;
+}
+
+list* DownloadListFromFileTxt(list* begin, string _fileName, int& index) {
 	list* end = NULL;
 	energyReport tempObject;
-	bool fileExtension;
-	string fileName;
-
-	cout << "Введите название файла для загрузки: ";
-	cin >> fileName;
-	cout << "Выберите расширение, из которого хотите открыть:\n0 - bin, 1 - txt" << endl;
-	cin >> fileExtension;
 	ifstream fin;
-
-	if (fileExtension) {
-		fileName += ".txt";
-		fin.open(fileName, ios::in);
-	}
-	else {
-		fileName += ".bin";
-		fin.open(fileName, ios::binary);
-	}
+	_fileName += ".txt";
+	fin.open(_fileName, ios::in);
 	fin.seekg(0, ios::beg);
 
 	if (fin.is_open()) {
-		DeleteList(begin);
+		DeleteList(begin, index);
 		while (fin >> tempObject.orderNumber) {
 			fin >> tempObject.factoryNumber;
-			fin >> tempObject.chiefEngineerFullName;
 			fin >> tempObject.directorFullName;
+			fin >> tempObject.chiefEngineerFullName;
 			fin >> tempObject.plannedEnergyConsumption;
 			fin >> tempObject.actualEnergyConsumption;
+
+			//Создание списка
+			list* temp = new list{ tempObject, NULL, end };
+			if (begin == NULL) begin = temp;
+			else {
+				temp->previous = end;
+				end->next = temp;
+			}
+			end = temp;
+			index++;
+		}
+		cout << "Список считан из файла" << endl;
+		cout << "==============================" << endl;
+	}
+	else cerr << "Не удалось открыть файл для загрузки списка." << endl;
+	fin.close();
+	return begin;
+}
+
+list* DownloadListFromFileBin(list* begin, string _fileName, int& index) {
+	list* end = NULL;
+	energyReport tempObject;
+	ifstream fin;
+	_fileName += ".dat";
+	fin.open(_fileName, ios::in | ios::binary);
+	fin.seekg(0, ios::beg);
+
+	if (fin.is_open()) {
+		DeleteList(begin, index);
+		uint64_t strLen = 0;
+
+		while (fin.read((char*)&tempObject.orderNumber, sizeof(int32_t))) {
+			fin.read((char*)&tempObject.factoryNumber, sizeof(int32_t));
+
+			fin.read((char*)&strLen, sizeof(uint64_t));
+			tempObject.directorFullName.resize(strLen);
+			fin.read(&tempObject.directorFullName[0], strLen);
+
+			fin.read((char*)&strLen, sizeof(uint64_t));
+			tempObject.chiefEngineerFullName.resize(strLen);
+			fin.read(&tempObject.chiefEngineerFullName[0], strLen);
+
+			fin.read((char*)&tempObject.plannedEnergyConsumption, sizeof(float));
+			fin.read((char*)&tempObject.actualEnergyConsumption, sizeof(float));
+
 			//Создание списка
 			list* temp = new list{ tempObject, nullptr, end };
 			if (begin == NULL) begin = temp;
@@ -365,16 +517,16 @@ list* DownloadListFromFile(list* begin, int& index) {
 		cout << "==============================" << endl;
 	}
 	else cerr << "Не удалось открыть файл для загрузки списка." << endl;
-	system("pause");
 	fin.close();
 	return begin;
 }
 
-void DeleteList(list*& begin) {
+void DeleteList(list*& begin, int& index) {
 	while (begin != NULL) {
 		list* next = begin->next;
 		delete begin;
 		begin = next;
+		index--;
 	}
 	return;
 }
@@ -392,40 +544,34 @@ list* CorrectField(list* begin, int modifiedElementIndex) {
 		return begin;
 	}
 
-	int userChoice;
+	int userChoice = 0;
 	bool isTrue = true;
 	while (isTrue) {
-		cout << "Выберите, что вы хотите изменить:" << endl;
-		cout << "1. Номер завода" << endl;
-		cout << "2. ФИО директора" << endl;
-		cout << "3. ФИО главного энергетика" << endl;
-		cout << "4. Расход энергии по плану (в тыс. КВт∙ч)" << endl;
-		cout << "5. Израсходовано фактически (в тыс. КВт∙ч)" << endl;
-		cout << "Нажмите 0, если закончили редактирование" << endl;
-		cin >> userChoice;
-		switch (userChoice) {
+		switch (menu(menuOptions2, N2, userChoice)) {
+		case -1:
+			return begin;
 		case 0:
-			isTrue = false;
-			break;
-		case 1:
 			cout << "Введите новый номер завода: ";
 			cin >> temp->inf.factoryNumber;
 			break;
-		case 2:
+		case 1:
 			cout << "Введите новое ФИО директора: ";
 			cin >> temp->inf.directorFullName;
 			break;
-		case 3:
+		case 2:
 			cout << "Введите новое ФИО главного энергетика: ";
 			cin >> temp->inf.chiefEngineerFullName;
 			break;
-		case 4:
+		case 3:
 			cout << "Введите новый расход энергии по плану (в тыс. КВт∙ч): ";
 			cin >> temp->inf.plannedEnergyConsumption;
 			break;
-		case 5:
+		case 4:
 			cout << "Введите новый фактический расход энергии (в тыс. КВт∙ч): ";
 			cin >> temp->inf.actualEnergyConsumption;
+			break;
+		case 5:
+			isTrue = false;
 			break;
 		default:
 			cout << "Некорректный выбор" << endl;
@@ -466,47 +612,63 @@ list* SortingList(list* begin) {
 		}
 		current = next;
 	}
+	cout << "Сортировка завершена" << endl;
+	cout << "==============================" << endl;
 	return sorted;
 }
 
 void SearchInList(list* begin) {
-	int userChoice;
-	cout << "Выберите по какому полю будет производиться поиск: " << endl;
-	cout << "1. ФИО директора" << endl;
-	cout << "2. ФИО главного инженера" << endl;
-	cout << "3. Номер завода" << endl;
-	cin >> userChoice;
+	int userChoice = 0;
 	string searchString;
 	int searchInt;
-	list* temp = begin;
-	switch (userChoice) {
-	case 1:
+	list* current = begin;
+	list* tempBeg = NULL;
+	list* end = NULL;
+	switch (menu(menuOptions3, N3, userChoice)) {
+	case -1:
+		return;
+	case 0:
 		cout << "Введите ФИО директора для поиска: ";
 		cin >> searchString;
-		for (; temp != NULL; temp = temp->next) {
-			if (temp->inf.directorFullName == searchString) {
-				cout << "Найдено совпадение" << endl;
-				PrintList(temp, 1);
+		for (; current != NULL; current = current->next) {
+			if (current->inf.directorFullName == searchString) {
+				list* temp = new list{ current->inf, NULL, end };
+				if (tempBeg == NULL) tempBeg = temp;
+				else {
+					temp->previous = end;
+					end->next = temp;
+				}
+				end = temp;
+			}
+		}
+		break;
+	case 1:
+		cout << "Введите ФИО главного инженера для поиска: ";
+		cin >> searchString;
+		for (; current != NULL; current = current->next) {
+			if (current->inf.chiefEngineerFullName == searchString) {
+				list* temp = new list{ current->inf, NULL, end };
+				if (tempBeg == NULL) tempBeg = temp;
+				else {
+					temp->previous = end;
+					end->next = temp;
+				}
+				end = temp;
 			}
 		}
 		break;
 	case 2:
-		cout << "Введите ФИО главного инженера для поиска: ";
-		cin >> searchString;
-		for (; temp != NULL; temp = temp->next) {
-			if (temp->inf.chiefEngineerFullName == searchString) {
-				cout << "Найдено совпадение" << endl;
-				PrintList(temp, 1);
-			}
-		}
-		break;
-	case 3:
 		cout << "Введите номер завода для поиска: ";
 		cin >> searchInt;
-		for (; temp != NULL; temp = temp->next) {
-			if (temp->inf.factoryNumber == searchInt) {
-				cout << "Найдено совпадение" << endl;
-				PrintList(temp, 1);
+		for (; current != NULL; current = current->next) {
+			if (current->inf.factoryNumber == searchInt) {
+				list* temp = new list{ current->inf, NULL, end };
+				if (tempBeg == NULL) tempBeg = temp;
+				else {
+					temp->previous = end;
+					end->next = temp;
+				}
+				end = temp;
 			}
 		}
 		break;
@@ -514,85 +676,92 @@ void SearchInList(list* begin) {
 		cout << "Некорректный выбор" << endl;
 		break;
 	}
+
+	if (tempBeg != NULL) {
+		cout << "Найдено совпадение" << endl;
+		PrintList(tempBeg);
+	}
+	else cout << "Совпадений не найдено" << endl;
+	cls();
 }
 
+void SaveProcessing(float _planned, float _actual) {
+	system("cls");
+	ofstream fout;
+	string fileName;
+	cout << "Введите название файла, в который будет сохранена обработка: ";
+	cin >> fileName;
+	fileName += ".txt";
+	fout.open(fileName, ios::app);
+	if (fout.is_open()) {
+		fout << "Cуммарное значение расхода по плану: " << _planned << endl;
+		fout << "Cуммарное значение фактического расхода: " << _actual << endl;
+		fout << "Cуммарное значение отклонения: " << _planned - _actual << endl;
+	}
+	else cerr << "Не удалось открыть файл для сохранения списка." << endl;
+	fout.close();
+	return;
+}
 
-
-//void menu(string* _menu) {
-//	enum {
-//		UP = 38,
-//		DOWN = 40,
-//		ESC = 27,
-//		ENTER = 13
-//	};
-//	SetConsoleTitle(L"Курсовой проект");
-//
-//	int selectedOption = 0;
-//	int totalOptions = sizeof(_menu) / sizeof(_menu[0]);
-//
-//
-//	int x = 40, y = 12;
-//	goToXY(x, y);
-//	for (int i = 0; i < (sizeof(_menu) / sizeof(*_menu)); i++) {
-//		if (i == selectedOption) {
-//			SetConsoleTextAttribute(hStdOut, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
-//		}
-//		SetConsoleTextAttribute(hStdOut, FOREGROUND_GREEN);
-//		goToXY(x, y++);
-//		cout << _menu[i] << endl;
-//	}
-//
-//	HANDLE hstdin = GetStdHandle(STD_INPUT_HANDLE);
-//	DWORD mode;
-//	GetConsoleMode(hstdin, &mode);
-//	SetConsoleMode(hstdin, mode& (~ENABLE_ECHO_INPUT)& (~ENABLE_LINE_INPUT));
-//
-//	INPUT_RECORD eventBuffer[128];
-//	DWORD numEvents;
-//	ReadConsoleInput(hstdin, eventBuffer, 128, &numEvents);
-//
-//	for (DWORD i = 0; i < numEvents; ++i) {
-//		if (eventBuffer[i].EventType == KEY_EVENT && eventBuffer[i].Event.KeyEvent.bKeyDown) {
-//			// Обработка нажатия клавиши
-//			switch (eventBuffer[i].Event.KeyEvent.wVirtualKeyCode) {
-//			case UP:
-//				// Кнопка "вверх"
-//				selectedOption = (selectedOption - 1 + totalOptions) % totalOptions; //чтобы не выходить за пределы меню
-//				break;
-//			case DOWN:
-//				// Кнопка "вниз"
-//				selectedOption = (selectedOption + 1) % totalOptions;
-//				break;
-//			case ENTER:
-//				// Кнопка "Enter"
-//				if (selectedOption == totalOptions - 1) {
-//					std::cout << "Выход из программы." << std::endl;
-//					return;
-//				}
-//				break;
-//			default:
-//				// Некорректный ввод
-//				break;
-//			}
-//		}
-//	}
-//}
-//
-//HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
 //void goToXY(short _x, short _y) {
 //	SetConsoleCursorPosition(hStdOut, { _x, _y });
 //}
-//
-//void cursorVisible(bool _show, int _size = 100) {
-//	CONSOLE_CURSOR_INFO cursorInfo;
-//	GetConsoleCursorInfo(hStdOut, &cursorInfo);
-//	cursorInfo.bVisible = _show;
-//	cursorInfo.dwSize = _size;
-//	SetConsoleCursorInfo(hStdOut, &cursorInfo);
-//}
 
+void cls() {
+	_getch();
+	system("cls");
+}
 
+void cursorVisible(bool _show, int _size) {
+	CONSOLE_CURSOR_INFO cursorInfo;
+	GetConsoleCursorInfo(hStdOut, &cursorInfo);
+	cursorInfo.bVisible = _show;
+	cursorInfo.dwSize = _size;
+	SetConsoleCursorInfo(hStdOut, &cursorInfo);
+}
 
+int menu(const string* _menu, int _size, int& _selectedOption) {
+	//int selectedOption = 0;
+	//size_t size = sizeof(_menu) / sizeof(_menu[0]);
+	system("cls");
+	cursorVisible(false, 100);
 
-//1 1 1 1 1 1 1 0 0 0 0 0 0
-//cout << "==============================" << endl;
+	while (true) {
+		for (int i = 0; i < _size; i++) {
+			if (i == _selectedOption) {
+				SetConsoleTextAttribute(hStdOut, BACKGROUND_GREEN | BACKGROUND_RED | BACKGROUND_INTENSITY | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+				cout << "-> " << _menu[i] << endl;
+			}
+			else {
+				SetConsoleTextAttribute(hStdOut, BACKGROUND_GREEN | BACKGROUND_RED | BACKGROUND_INTENSITY);
+				cout << "   " << _menu[i] << endl;
+			}
+		}
+		int key = _getch();
+		if (key == 224) key = _getch();
+
+		switch (key) {
+		case UP:
+			// Кнопка "вверх"
+			system("cls");
+			_selectedOption = (_selectedOption - 1 + _size) % _size; //чтобы не выходить за пределы меню
+			break;
+		case DOWN:
+			// Кнопка "вниз"
+			system("cls");
+			_selectedOption = (_selectedOption + 1) % _size;
+			break;
+		case ESC:
+			system("cls");
+			return -1;
+		case ENTER:
+			system("cls");
+			return _selectedOption;
+		default:
+			cout << "Ошибка при выборе действия. Попробуйте еще раз" << endl;
+			break;
+		}
+	}
+	return 0;
+}
+
